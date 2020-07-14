@@ -36,7 +36,7 @@ func TestFiles(t *testing.T) {
 
 	t.Run("invalid-content-type", func(t *testing.T) {
 		jsonhttptest.ResponseDirectSendHeadersAndReceiveHeaders(t, client, http.MethodPost, fileUploadResource, bytes.NewReader(simpleData), http.StatusBadRequest, jsonhttp.StatusResponse{
-			Message: "invalid content-type header",
+			Message: "could not extract file info from request",
 			Code:    http.StatusBadRequest,
 		}, nil)
 	})

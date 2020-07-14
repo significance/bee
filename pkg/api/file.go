@@ -56,7 +56,7 @@ func (s *server) fileUploadHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		s.Logger.Debugf("file upload: get file info, request %v: %v", *r, err)
 		s.Logger.Errorf("file upload: get file info, request %v", *r)
-		jsonhttp.InternalServerError(w, "could not extract file info from request")
+		jsonhttp.BadRequest(w, "could not extract file info from request")
 		return
 	}
 
