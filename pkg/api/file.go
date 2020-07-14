@@ -52,105 +52,21 @@ type fileUploadInfo struct {
 // - multipart http message
 // - other content types as complete file body
 func (s *server) fileUploadHandler(w http.ResponseWriter, r *http.Request) {
-	toEncrypt := strings.ToLower(r.Header.Get(EncryptHeader)) == "true"
-	contentType := r.Header.Get("Content-Type")
-	mediaType, params, err := mime.ParseMediaType(contentType)
+	fileInfo, err := getFileInfo(r)
 	if err != nil {
-		s.Logger.Debugf("file upload: parse content type header %q: %v", contentType, err)
-		s.Logger.Errorf("file upload: parse content type header %q", contentType)
-		jsonhttp.BadRequest(w, "invalid content-type header")
+		s.Logger.Debugf("file upload: get file info, request %v: %v", *r, err)
+		s.Logger.Errorf("file upload: get file info, request %v", *r)
+		jsonhttp.InternalServerError(w, "could not extract file info from request")
 		return
 	}
 
 	ctx := r.Context()
-	var reader io.Reader
-	var fileName, contentLength string
-	var fileSize uint64
-
-	if mediaType == multiPartFormData {
-		mr := multipart.NewReader(r.Body, params["boundary"])
-
-		// read only the first part, as only one file upload is supported
-		part, err := mr.NextPart()
-		if err != nil {
-			s.Logger.Debugf("file upload: read multipart: %v", err)
-			s.Logger.Error("file upload: read multipart")
-			jsonhttp.BadRequest(w, "invalid multipart/form-data")
-			return
-		}
-
-		// try to find filename
-		// 1) in part header params
-		// 2) as formname
-		// 3) file reference hash (after uploading the file)
-		if fileName = part.FileName(); fileName == "" {
-			fileName = part.FormName()
-		}
-
-		// then find out content type
-		contentType = part.Header.Get("Content-Type")
-		if contentType == "" {
-			br := bufio.NewReader(part)
-			buf, err := br.Peek(512)
-			if err != nil && err != io.EOF {
-				s.Logger.Debugf("file upload: read content type, file %q: %v", fileName, err)
-				s.Logger.Errorf("file upload: read content type, file %q", fileName)
-				jsonhttp.BadRequest(w, "error reading content type")
-				return
-			}
-			contentType = http.DetectContentType(buf)
-			reader = br
-		} else {
-			reader = part
-		}
-		contentLength = part.Header.Get("Content-Length")
-	} else {
-		fileName = r.URL.Query().Get("name")
-		contentLength = r.Header.Get("Content-Length")
-		reader = r.Body
-	}
-
-	if contentLength != "" {
-		fileSize, err = strconv.ParseUint(contentLength, 10, 64)
-		if err != nil {
-			s.Logger.Debugf("file upload: content length, file %q: %v", fileName, err)
-			s.Logger.Errorf("file upload: content length, file %q", fileName)
-			jsonhttp.BadRequest(w, "invalid content length header")
-			return
-		}
-	} else {
-		// copy the part to a tmp file to get its size
-		tmp, err := ioutil.TempFile("", "bee-multipart")
-		if err != nil {
-			s.Logger.Debugf("file upload: create temporary file: %v", err)
-			s.Logger.Errorf("file upload: create temporary file")
-			jsonhttp.InternalServerError(w, nil)
-			return
-		}
-		defer os.Remove(tmp.Name())
-		defer tmp.Close()
-		n, err := io.Copy(tmp, reader)
-		if err != nil {
-			s.Logger.Debugf("file upload: write temporary file: %v", err)
-			s.Logger.Error("file upload: write temporary file")
-			jsonhttp.InternalServerError(w, nil)
-			return
-		}
-		if _, err := tmp.Seek(0, io.SeekStart); err != nil {
-			s.Logger.Debugf("file upload: seek to beginning of temporary file: %v", err)
-			s.Logger.Error("file upload: seek to beginning of temporary file")
-			jsonhttp.InternalServerError(w, nil)
-			return
-		}
-		fileSize = uint64(n)
-		reader = tmp
-	}
-
-	reference, err := storeFile(ctx, fileName, int64(fileSize), contentType, toEncrypt, s.Storer, reader)
+	reference, err := storeFile(ctx, fileInfo, s.Storer)
 	if err != nil {
-		s.Logger.Debugf("file upload: store file, file %s: %v", fileName, err)
-		s.Logger.Errorf("file upload: store file, file %s", fileName)
+		s.Logger.Debugf("file upload: store file, request %s: %v", *r, err)
+		s.Logger.Errorf("file upload: store file, request %s", *r)
 		jsonhttp.InternalServerError(w, "could not store file")
+		return
 	}
 
 	w.Header().Set("ETag", fmt.Sprintf("%q", reference.String()))
@@ -243,29 +159,29 @@ func getFileInfo(r *http.Request) (*fileUploadInfo, error) {
 }
 
 // storeFile stores the given file and returns its reference
-func storeFile(ctx context.Context, fileName string, fileSize int64, contentType string, toEncrypt bool, s storage.Storer, reader io.Reader) (swarm.Address, error) {
+func storeFile(ctx context.Context, fileInfo *fileUploadInfo, s storage.Storer) (swarm.Address, error) {
 	// first store the file and get its reference
 	sp := splitter.NewSimpleSplitter(s)
-	fr, err := file.SplitWriteAll(ctx, sp, reader, fileSize, toEncrypt)
+	fr, err := file.SplitWriteAll(ctx, sp, fileInfo.reader, fileInfo.fileSize, fileInfo.toEncrypt)
 	if err != nil {
 		return swarm.ZeroAddress, fmt.Errorf("split file error: %v", err)
 	}
 
 	// if filename is still empty, use the file hash as the filename
-	if fileName == "" {
-		fileName = fr.String()
+	if fileInfo.fileName == "" {
+		fileInfo.fileName = fr.String()
 	}
 
 	// then store the metadata and get its reference
-	m := entry.NewMetadata(fileName)
-	m.MimeType = contentType
+	m := entry.NewMetadata(fileInfo.fileName)
+	m.MimeType = fileInfo.contentType
 	metadataBytes, err := json.Marshal(m)
 	if err != nil {
 		return swarm.ZeroAddress, fmt.Errorf("metadata marshal error: %v", err)
 	}
 
 	sp = splitter.NewSimpleSplitter(s)
-	mr, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(metadataBytes), int64(len(metadataBytes)), toEncrypt)
+	mr, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(metadataBytes), int64(len(metadataBytes)), fileInfo.toEncrypt)
 	if err != nil {
 		return swarm.ZeroAddress, fmt.Errorf("split metadata error: %v", err)
 	}
@@ -277,7 +193,7 @@ func storeFile(ctx context.Context, fileName string, fileSize int64, contentType
 		return swarm.ZeroAddress, fmt.Errorf("entry marhsal error: %v", err)
 	}
 	sp = splitter.NewSimpleSplitter(s)
-	reference, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(fileEntryBytes), int64(len(fileEntryBytes)), toEncrypt)
+	reference, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(fileEntryBytes), int64(len(fileEntryBytes)), fileInfo.toEncrypt)
 	if err != nil {
 		return swarm.ZeroAddress, fmt.Errorf("split entry error: %v", err)
 	}
