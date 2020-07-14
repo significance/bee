@@ -7,6 +7,7 @@ package api
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -192,6 +193,48 @@ func (s *server) fileUploadHandler(w http.ResponseWriter, r *http.Request) {
 	jsonhttp.OK(w, fileUploadResponse{
 		Reference: reference,
 	})
+}
+
+// storeFile stores the given file and returns its reference
+func storeFile(ctx context.Context, fileName string, fileSize int64, contentType string, toEncrypt bool, s storage.Storer, reader io.Reader) (swarm.Address, error) {
+	// first store the file and get its reference
+	sp := splitter.NewSimpleSplitter(s)
+	fr, err := file.SplitWriteAll(ctx, sp, reader, fileSize, toEncrypt)
+	if err != nil {
+		return swarm.ZeroAddress, err
+	}
+
+	// if filename is still empty, use the file hash as the filename
+	if fileName == "" {
+		fileName = fr.String()
+	}
+
+	// then store the metadata and get its reference
+	m := entry.NewMetadata(fileName)
+	m.MimeType = contentType
+	metadataBytes, err := json.Marshal(m)
+	if err != nil {
+		return swarm.ZeroAddress, err
+	}
+
+	sp = splitter.NewSimpleSplitter(s)
+	mr, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(metadataBytes), int64(len(metadataBytes)), toEncrypt)
+	if err != nil {
+		return swarm.ZeroAddress, err
+	}
+
+	// now join both references (mr, fr) to create an entry and store it
+	e := entry.New(fr, mr)
+	fileEntryBytes, err := e.MarshalBinary()
+	if err != nil {
+		return swarm.ZeroAddress, err
+	}
+	sp = splitter.NewSimpleSplitter(s)
+	reference, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(fileEntryBytes), int64(len(fileEntryBytes)), toEncrypt)
+	if err != nil {
+		return swarm.ZeroAddress, err
+	}
+	return reference, nil
 }
 
 // fileDownloadHandler downloads the file given the entry's reference.
