@@ -138,57 +138,13 @@ func (s *server) fileUploadHandler(w http.ResponseWriter, r *http.Request) {
 		reader = tmp
 	}
 
-	// first store the file and get its reference
-	sp := splitter.NewSimpleSplitter(s.Storer)
-	fr, err := file.SplitWriteAll(ctx, sp, reader, int64(fileSize), toEncrypt)
+	reference, err := storeFile(ctx, fileName, int64(fileSize), contentType, toEncrypt, s.Storer, reader)
 	if err != nil {
-		s.Logger.Debugf("file upload: file store, file %q: %v", fileName, err)
-		s.Logger.Errorf("file upload: file store, file %q", fileName)
-		jsonhttp.InternalServerError(w, "could not store file data")
-		return
+		s.Logger.Debugf("file upload: store file, file %s: %v", fileName, err)
+		s.Logger.Errorf("file upload: store file, file %s", fileName)
+		jsonhttp.InternalServerError(w, "could not store file")
 	}
 
-	// If filename is still empty, use the file hash as the filename
-	if fileName == "" {
-		fileName = fr.String()
-	}
-
-	// then store the metadata and get its reference
-	m := entry.NewMetadata(fileName)
-	m.MimeType = contentType
-	metadataBytes, err := json.Marshal(m)
-	if err != nil {
-		s.Logger.Debugf("file upload: metadata marshal, file %q: %v", fileName, err)
-		s.Logger.Errorf("file upload: metadata marshal, file %q", fileName)
-		jsonhttp.InternalServerError(w, "metadata marshal error")
-		return
-	}
-	sp = splitter.NewSimpleSplitter(s.Storer)
-	mr, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(metadataBytes), int64(len(metadataBytes)), toEncrypt)
-	if err != nil {
-		s.Logger.Debugf("file upload: metadata store, file %q: %v", fileName, err)
-		s.Logger.Errorf("file upload: metadata store, file %q", fileName)
-		jsonhttp.InternalServerError(w, "could not store metadata")
-		return
-	}
-
-	// now join both references (mr,fr) to create an entry and store it.
-	entrie := entry.New(fr, mr)
-	fileEntryBytes, err := entrie.MarshalBinary()
-	if err != nil {
-		s.Logger.Debugf("file upload: entry marshal, file %q: %v", fileName, err)
-		s.Logger.Errorf("file upload: entry marshal, file %q", fileName)
-		jsonhttp.InternalServerError(w, "entry marshal error")
-		return
-	}
-	sp = splitter.NewSimpleSplitter(s.Storer)
-	reference, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(fileEntryBytes), int64(len(fileEntryBytes)), toEncrypt)
-	if err != nil {
-		s.Logger.Debugf("file upload: entry store, file %q: %v", fileName, err)
-		s.Logger.Errorf("file upload: entry store, file %q", fileName)
-		jsonhttp.InternalServerError(w, "could not store entry")
-		return
-	}
 	w.Header().Set("ETag", fmt.Sprintf("%q", reference.String()))
 	jsonhttp.OK(w, fileUploadResponse{
 		Reference: reference,
@@ -201,7 +157,7 @@ func storeFile(ctx context.Context, fileName string, fileSize int64, contentType
 	sp := splitter.NewSimpleSplitter(s)
 	fr, err := file.SplitWriteAll(ctx, sp, reader, fileSize, toEncrypt)
 	if err != nil {
-		return swarm.ZeroAddress, err
+		return swarm.ZeroAddress, fmt.Errorf("split file error: %v", err)
 	}
 
 	// if filename is still empty, use the file hash as the filename
@@ -214,26 +170,27 @@ func storeFile(ctx context.Context, fileName string, fileSize int64, contentType
 	m.MimeType = contentType
 	metadataBytes, err := json.Marshal(m)
 	if err != nil {
-		return swarm.ZeroAddress, err
+		return swarm.ZeroAddress, fmt.Errorf("metadata marshal error: %v", err)
 	}
 
 	sp = splitter.NewSimpleSplitter(s)
 	mr, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(metadataBytes), int64(len(metadataBytes)), toEncrypt)
 	if err != nil {
-		return swarm.ZeroAddress, err
+		return swarm.ZeroAddress, fmt.Errorf("split metadata error: %v", err)
 	}
 
 	// now join both references (mr, fr) to create an entry and store it
 	e := entry.New(fr, mr)
 	fileEntryBytes, err := e.MarshalBinary()
 	if err != nil {
-		return swarm.ZeroAddress, err
+		return swarm.ZeroAddress, fmt.Errorf("entry marhsal error: %v", err)
 	}
 	sp = splitter.NewSimpleSplitter(s)
 	reference, err := file.SplitWriteAll(ctx, sp, bytes.NewReader(fileEntryBytes), int64(len(fileEntryBytes)), toEncrypt)
 	if err != nil {
-		return swarm.ZeroAddress, err
+		return swarm.ZeroAddress, fmt.Errorf("split entry error: %v", err)
 	}
+
 	return reference, nil
 }
 
