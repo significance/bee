@@ -5,8 +5,6 @@
 package jsonmanifest
 
 import (
-	"net/http"
-
 	"github.com/ethersphere/bee/pkg/manifest"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
@@ -18,15 +16,15 @@ var _ manifest.Entry = (*jsonEntry)(nil)
 type jsonEntry struct {
 	R swarm.Address `json:"reference"`
 	N string        `json:"name"`
-	H http.Header   `json:"header"`
+	M string        `json:"mimetype"`
 }
 
 // NewEntry creates a new jsonEntry struct and returns it.
-func NewEntry(reference swarm.Address, name string, headers http.Header) manifest.Entry {
+func NewEntry(reference swarm.Address, name, mimeType string) manifest.Entry {
 	return &jsonEntry{
 		R: reference,
 		N: name,
-		H: headers,
+		M: mimeType,
 	}
 }
 
@@ -40,7 +38,7 @@ func (me *jsonEntry) Name() string {
 	return me.N
 }
 
-// Header returns the HTTP header for the file in the manifest entry.
-func (me *jsonEntry) Header() http.Header {
-	return me.H
+// Header returns the MIME type for the file in the manifest entry.
+func (me *jsonEntry) MimeType() string {
+	return me.M
 }

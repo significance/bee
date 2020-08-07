@@ -92,7 +92,7 @@ func TestBzz(t *testing.T) {
 
 		jsonManifest := jsonmanifest.NewManifest()
 
-		e := jsonmanifest.NewEntry(fileReference, fileName, http.Header{"Content-Type": {"text/html", "charset=utf-8"}})
+		e := jsonmanifest.NewEntry(fileReference, fileName, "text/html; charset=utf-8")
 		jsonManifest.Add(filePath, e)
 
 		manifestFileBytes, err := jsonManifest.MarshalBinary()

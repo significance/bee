@@ -76,58 +76,48 @@ func TestDirs(t *testing.T) {
 	}{
 		{
 			name:         "non-nested files without extension",
-			expectedHash: "3609d0521d34469ecbffc1d2401ce7a34c7c54bb63e8d23933ef0073015aa9e7",
+			expectedHash: "8e1025a9f0431fec424a3a5a22224a91b451a70b1d44a41f9ac5f36ca482206a",
 			files: []f{
 				{
 					data:      []byte("first file data"),
 					name:      "file1",
 					dir:       "",
 					reference: swarm.MustParseHexAddress("3c07cd2cf5c46208d69d554b038f4dce203f53ac02cb8a313a0fe1e3fe6cc3cf"),
-					header: http.Header{
-						"Content-Type": {""},
-					},
+					mimeType:  "",
 				},
 				{
 					data:      []byte("second file data"),
 					name:      "file2",
 					dir:       "",
 					reference: swarm.MustParseHexAddress("47e1a2a8f16e02da187fac791d57e6794f3e9b5d2400edd00235da749ad36683"),
-					header: http.Header{
-						"Content-Type": {""},
-					},
+					mimeType:  "",
 				},
 			},
 		},
 		{
 			name:         "nested files with extension",
-			expectedHash: "983869d469f0eab1f1bb6c2daeac1fdf476968246410b3001e59e9f2e0236da0",
+			expectedHash: "3ff3a7e1c8f1ae9f9c1f9dfeb934a2c38aad7f10bcead042685fc1ffc21de0cc",
 			files: []f{
 				{
 					data:      []byte("robots text"),
 					name:      "robots.txt",
 					dir:       "",
 					reference: swarm.MustParseHexAddress("17b96d0a800edca59aaf7e40c6053f7c4c0fb80dd2eb3f8663d51876bf350b12"),
-					header: http.Header{
-						"Content-Type": {"text/plain; charset=utf-8"},
-					},
+					mimeType:  "text/plain; charset=utf-8",
 				},
 				{
 					data:      []byte("image 1"),
 					name:      "1.png",
 					dir:       "img",
 					reference: swarm.MustParseHexAddress("3c1b3fc640e67f0595d9c1db23f10c7a2b0bdc9843b0e27c53e2ac2a2d6c4674"),
-					header: http.Header{
-						"Content-Type": {"image/png"},
-					},
+					mimeType:  "image/png",
 				},
 				{
 					data:      []byte("image 2"),
 					name:      "2.png",
 					dir:       "img",
 					reference: swarm.MustParseHexAddress("b234ea7954cab7b2ccc5e07fe8487e932df11b2275db6b55afcbb7bad0be73fb"),
-					header: http.Header{
-						"Content-Type": {"image/png"},
-					},
+					mimeType:  "image/png",
 				},
 			},
 		},
@@ -146,7 +136,7 @@ func TestDirs(t *testing.T) {
 			// create expected manifest
 			expectedManifest := jsonmanifest.NewManifest()
 			for _, file := range tc.files {
-				e := jsonmanifest.NewEntry(file.reference, file.name, file.header)
+				e := jsonmanifest.NewEntry(file.reference, file.name, file.mimeType)
 				expectedManifest.Add(path.Join(file.dir, file.name), e)
 			}
 
@@ -198,5 +188,5 @@ type f struct {
 	name      string
 	dir       string
 	reference swarm.Address
-	header    http.Header
+	mimeType  string
 }

@@ -7,7 +7,6 @@ package manifest
 import (
 	"encoding"
 	"errors"
-	"net/http"
 
 	"github.com/ethersphere/bee/pkg/swarm"
 )
@@ -35,6 +34,6 @@ type Entry interface {
 	Reference() swarm.Address
 	// Name returns the name of the file in the entry.
 	Name() string
-	// Header returns the HTTP header for the file in the manifest entry.
-	Header() http.Header
+	// MimeType returns the MIME type for the file in the manifest entry.
+	MimeType() string
 }

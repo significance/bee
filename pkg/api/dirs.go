@@ -115,9 +115,7 @@ func storeDir(ctx context.Context, reader io.ReadCloser, s storage.Storer, logge
 		logger.Tracef("uploaded dir file %v with reference %v", filePath, fileReference)
 
 		// create manifest entry for uploaded file
-		headers := http.Header{}
-		headers.Set("Content-Type", contentType)
-		fileEntry := jsonmanifest.NewEntry(fileReference, fileName, headers)
+		fileEntry := jsonmanifest.NewEntry(fileReference, fileName, contentType)
 
 		// add entry to dir manifest
 		dirManifest.Add(filePath, fileEntry)
