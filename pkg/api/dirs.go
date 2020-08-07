@@ -99,14 +99,14 @@ func storeDir(ctx context.Context, reader io.ReadCloser, s storage.Storer, logge
 		}
 
 		fileName := fileHeader.FileInfo().Name()
-		contentType := mime.TypeByExtension(filepath.Ext(fileHeader.Name))
+		mimeType := mime.TypeByExtension(filepath.Ext(fileHeader.Name))
 
 		// upload file
 		fileInfo := &fileUploadInfo{
-			name:        fileName,
-			size:        fileHeader.FileInfo().Size(),
-			contentType: contentType,
-			reader:      tarReader,
+			name:     fileName,
+			size:     fileHeader.FileInfo().Size(),
+			mimeType: mimeType,
+			reader:   tarReader,
 		}
 		fileReference, err := storeFile(ctx, fileInfo, s)
 		if err != nil {
@@ -115,7 +115,7 @@ func storeDir(ctx context.Context, reader io.ReadCloser, s storage.Storer, logge
 		logger.Tracef("uploaded dir file %v with reference %v", filePath, fileReference)
 
 		// create manifest entry for uploaded file
-		fileEntry := jsonmanifest.NewEntry(fileReference, fileName, contentType)
+		fileEntry := jsonmanifest.NewEntry(fileReference, fileName, mimeType)
 
 		// add entry to dir manifest
 		dirManifest.Add(filePath, fileEntry)
@@ -138,9 +138,9 @@ func storeDir(ctx context.Context, reader io.ReadCloser, s storage.Storer, logge
 
 	// then, upload manifest
 	manifestFileInfo := &fileUploadInfo{
-		size:        r.Size(),
-		contentType: ManifestContentType,
-		reader:      r,
+		size:     r.Size(),
+		mimeType: ManifestContentType,
+		reader:   r,
 	}
 	manifestReference, err := storeFile(ctx, manifestFileInfo, s)
 	if err != nil {

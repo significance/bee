@@ -218,10 +218,10 @@ func (s *server) fileUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 // fileUploadInfo contains the data for a file to be uploaded
 type fileUploadInfo struct {
-	name        string // file name
-	size        int64  // file size
-	contentType string
-	reader      io.Reader
+	name     string // file name
+	size     int64  // file size
+	mimeType string
+	reader   io.Reader
 }
 
 // storeFile uploads the given file and returns its reference
@@ -244,7 +244,7 @@ func storeFile(ctx context.Context, fileInfo *fileUploadInfo, s storage.Storer) 
 
 	// then store the metadata and get its reference
 	m := entry.NewMetadata(fileInfo.name)
-	m.MimeType = fileInfo.contentType
+	m.MimeType = fileInfo.mimeType
 	metadataBytes, err := json.Marshal(m)
 	if err != nil {
 		return swarm.ZeroAddress, fmt.Errorf("metadata marshal error: %w", err)
