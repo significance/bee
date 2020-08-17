@@ -50,7 +50,6 @@ func NewTreeMap(maxBins uint8, requires int) *[]MetaBinTree {
 		barr[i] = MetaBinTree{order: int(i) + 1, required: requires}
 	}
 	return &barr
-
 }
 
 func (b *MetaBinTree) Insert(new swarm.Address) *MetaBinTree {
@@ -68,7 +67,7 @@ func (b *MetaBinTree) Remove(old swarm.Address) *MetaBinTree {
 	return b
 }
 
-func (b *MetaBinTree) metabinSize() int {
+func (b *MetaBinTree) MetaBinSize() int {
 	if b.root != nil {
 		return b.root.metabinSize()
 	}
@@ -90,10 +89,6 @@ func (b *MetaBinTree) print() {
 		return
 	}
 	fmt.Println("Empty MetaBinTree")
-}
-
-func (b *MetaBinTree) pv() *MetaBinTree {
-	return b
 }
 
 func (b *MetaBin) insert(new swarm.Address) {
