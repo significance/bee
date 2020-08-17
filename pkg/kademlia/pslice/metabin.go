@@ -5,6 +5,7 @@
 package pslice
 
 import (
+	"fmt"
 	"github.com/ethersphere/bee/pkg/logging"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
@@ -22,6 +23,8 @@ import (
 
 // b0: Metabin containing addresses with '0' at significant bit
 // b1: Metabin containing addresses with '1' at significant bit
+
+type P map[string]struct{}
 
 type MetaBinTree struct {
 	order    int
@@ -41,7 +44,16 @@ type MetaBin struct {
 	Logger   logging.Logger
 }
 
-func (b *MetaBinTree) insert(new swarm.Address) *MetaBinTree {
+func NewTreeMap(maxBins uint8, requires int) *[]MetaBinTree {
+	barr := make([]MetaBinTree, maxBins)
+	for i := uint8(0); i < maxBins; i++ {
+		barr[i] = MetaBinTree{order: int(i) + 1, required: requires}
+	}
+	return &barr
+
+}
+
+func (b *MetaBinTree) Insert(new swarm.Address) *MetaBinTree {
 	if b.root == nil {
 		b.root = &MetaBin{order: b.order, required: b.required}
 	}
@@ -49,7 +61,7 @@ func (b *MetaBinTree) insert(new swarm.Address) *MetaBinTree {
 	return b
 }
 
-func (b *MetaBinTree) remove(old swarm.Address) *MetaBinTree {
+func (b *MetaBinTree) Remove(old swarm.Address) *MetaBinTree {
 	if b.root != nil {
 		b.root.remove(old)
 	}
@@ -61,6 +73,27 @@ func (b *MetaBinTree) metabinSize() int {
 		return b.root.metabinSize()
 	}
 	return 0
+}
+
+func (b *MetaBinTree) CompletelyNonEmpty() bool {
+	if b.root != nil {
+		return b.root.completelyNonEmpty()
+	}
+	return false
+
+}
+
+func (b *MetaBinTree) print() {
+	//fmt.Println("\n Printing Metabin for PO: %v \n", b.order-1)
+	if b.root != nil {
+		b.root.print()
+		return
+	}
+	fmt.Println("Empty MetaBinTree")
+}
+
+func (b *MetaBinTree) pv() *MetaBinTree {
+	return b
 }
 
 func (b *MetaBin) insert(new swarm.Address) {
@@ -84,6 +117,9 @@ func (b *MetaBin) insert(new swarm.Address) {
 	}
 	// At this point, it is sure we have narrowed to a metabin with a required number of connections less or equal to 1
 	// So we are not going to make more in-depth metabins, we add the new peer to the unsorted list
+	if b.unsorted == nil {
+		b.unsorted = make(P, swarm.MaxBins)
+	}
 	b.unsorted[new.String()] = struct{}{}
 }
 
@@ -119,4 +155,29 @@ func (b *MetaBin) metabinSize() int {
 		// The reason this shouldn't ever actually happen, is because we either insert to unsorted if R <= 1, or create metabins otherwise
 	}
 	return l0 + l1 + lu
+}
+
+func (b *MetaBin) completelyNonEmpty() bool {
+	if b.required > 1 {
+		return b.b0.completelyNonEmpty() && b.b1.completelyNonEmpty()
+	}
+	if len(b.unsorted) > 0 {
+		return true
+	}
+
+	return false
+
+}
+
+func (b *MetaBin) print() {
+
+	if b.required > 1 {
+		fmt.Print("0")
+		b.b0.print()
+		fmt.Print("1")
+		b.b1.print()
+	}
+	if b.required <= 1 {
+		//	fmt.Println("\n %v", b.unsorted)
+	}
 }
