@@ -7,12 +7,14 @@ package chequebook_test
 import (
 	"context"
 	"errors"
+	"io/ioutil"
 	"math/big"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/accounts/abi/bind"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethersphere/bee/pkg/logging"
 	"github.com/ethersphere/bee/pkg/settlement/swap/chequebook"
 	chequestoremock "github.com/ethersphere/bee/pkg/settlement/swap/chequestore/mock"
 	"github.com/ethersphere/bee/pkg/settlement/swap/transaction"
@@ -41,6 +43,7 @@ func TestCashout(t *testing.T) {
 
 	store := storemock.NewStateStore()
 	cashoutService, err := chequebook.NewCashoutService(
+		logging.New(ioutil.Discard, 0),
 		store,
 		func(common.Address, bind.ContractBackend) (chequebook.SimpleSwapBinding, error) {
 			return &simpleSwapBindingMock{
@@ -170,6 +173,7 @@ func TestCashoutBounced(t *testing.T) {
 
 	store := storemock.NewStateStore()
 	cashoutService, err := chequebook.NewCashoutService(
+		logging.New(ioutil.Discard, 0),
 		store,
 		func(common.Address, bind.ContractBackend) (chequebook.SimpleSwapBinding, error) {
 			return &simpleSwapBindingMock{
@@ -306,6 +310,7 @@ func TestCashoutStatusReverted(t *testing.T) {
 
 	store := storemock.NewStateStore()
 	cashoutService, err := chequebook.NewCashoutService(
+		logging.New(ioutil.Discard, 0),
 		store,
 		func(common.Address, bind.ContractBackend) (chequebook.SimpleSwapBinding, error) {
 			return &simpleSwapBindingMock{}, nil
@@ -388,6 +393,7 @@ func TestCashoutStatusPending(t *testing.T) {
 
 	store := storemock.NewStateStore()
 	cashoutService, err := chequebook.NewCashoutService(
+		logging.New(ioutil.Discard, 0),
 		store,
 		func(common.Address, bind.ContractBackend) (chequebook.SimpleSwapBinding, error) {
 			return &simpleSwapBindingMock{}, nil

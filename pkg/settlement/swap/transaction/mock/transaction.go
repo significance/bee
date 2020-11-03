@@ -14,8 +14,9 @@ import (
 )
 
 type transactionServiceMock struct {
-	send           func(ctx context.Context, request *transaction.TxRequest) (txHash common.Hash, err error)
-	waitForReceipt func(ctx context.Context, txHash common.Hash) (receipt *types.Receipt, err error)
+	send            func(ctx context.Context, request *transaction.TxRequest) (txHash common.Hash, err error)
+	waitForReceipt  func(ctx context.Context, txHash common.Hash) (receipt *types.Receipt, err error)
+	watchForReceipt func(ctx context.Context, txHash common.Hash) (chan *types.Receipt, chan error)
 }
 
 func (m *transactionServiceMock) Send(ctx context.Context, request *transaction.TxRequest) (txHash common.Hash, err error) {
@@ -30,6 +31,13 @@ func (m *transactionServiceMock) WaitForReceipt(ctx context.Context, txHash comm
 		return m.waitForReceipt(ctx, txHash)
 	}
 	return nil, errors.New("not implemented")
+}
+
+func (m *transactionServiceMock) WatchForReceipt(ctx context.Context, txHash common.Hash) (chan *types.Receipt, chan error) {
+	if m.watchForReceipt != nil {
+		return m.watchForReceipt(ctx, txHash)
+	}
+	return nil, nil
 }
 
 // Option is the option passed to the mock Chequebook service
