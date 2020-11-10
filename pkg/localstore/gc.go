@@ -128,6 +128,10 @@ func (db *DB) collectGarbage() (collectedCount uint64, done bool, err error) {
 		if err != nil {
 			return true, nil
 		}
+		err = db.postageBatchChunksIndex.DeleteInBatch(batch, item)
+		if err != nil {
+			return true, nil
+		}
 		err = db.gcIndex.DeleteInBatch(batch, item)
 		if err != nil {
 			return true, nil

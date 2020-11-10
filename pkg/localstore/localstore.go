@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/ethersphere/bee/pkg/logging"
+	"github.com/ethersphere/bee/pkg/postage"
 	"github.com/ethersphere/bee/pkg/shed"
 	"github.com/ethersphere/bee/pkg/storage"
 	"github.com/ethersphere/bee/pkg/swarm"
@@ -104,6 +105,9 @@ type DB struct {
 	// are done before closing the database
 	updateGCWG sync.WaitGroup
 
+	// postage batch to chunks index
+	postageBatchChunksIndex shed.Index
+
 	// baseKey is the overlay address
 	baseKey []byte
 
@@ -157,8 +161,8 @@ func New(path string, baseKey []byte, o *Options, logger logging.Logger) (db *DB
 		// needs to be buffered with the size of 1
 		// to signal another event if it
 		// is triggered during already running function
-		collectGarbageTrigger:    make(chan struct{}, 1),
-		close:                    make(chan struct{}),
+		collectGarbageTrigger: make(chan struct{}, 1),
+		close: make(chan struct{}),
 		collectGarbageWorkerDone: make(chan struct{}),
 		metrics:                  newMetrics(),
 		logger:                   logger,
@@ -214,7 +218,8 @@ func New(path string, baseKey []byte, o *Options, logger logging.Logger) (db *DB
 	}
 
 	// Index storing actual chunk address, data and bin id.
-	db.retrievalDataIndex, err = db.shed.NewIndex("Address->StoreTimestamp|BinID|Data", shed.IndexFuncs{
+	headerSize := 16 + postage.StampSize
+	db.retrievalDataIndex, err = db.shed.NewIndex("Address->StoreTimestamp|BinID|BatchID|Sig|Data", shed.IndexFuncs{
 		EncodeKey: func(fields shed.Item) (key []byte, err error) {
 			return fields.Address, nil
 		},
@@ -223,16 +228,27 @@ func New(path string, baseKey []byte, o *Options, logger logging.Logger) (db *DB
 			return e, nil
 		},
 		EncodeValue: func(fields shed.Item) (value []byte, err error) {
-			b := make([]byte, 16)
+			b := make([]byte, headerSize)
 			binary.BigEndian.PutUint64(b[:8], fields.BinID)
 			binary.BigEndian.PutUint64(b[8:16], uint64(fields.StoreTimestamp))
+			stamp, err := postage.NewStamp(fields.BatchID, fields.Sig).MarshalBinary()
+			if err != nil {
+				return nil, err
+			}
+			copy(b[16:], stamp)
 			value = append(b, fields.Data...)
 			return value, nil
 		},
 		DecodeValue: func(keyItem shed.Item, value []byte) (e shed.Item, err error) {
 			e.StoreTimestamp = int64(binary.BigEndian.Uint64(value[8:16]))
 			e.BinID = binary.BigEndian.Uint64(value[:8])
-			e.Data = value[16:]
+			stamp := postage.NewStamp(nil, nil)
+			if err = stamp.UnmarshalBinary(value[16:headerSize]); err != nil {
+				return e, err
+			}
+			e.BatchID = stamp.BatchID()
+			e.Sig = stamp.Sig()
+			e.Data = value[headerSize:]
 			return e, nil
 		},
 	})
@@ -265,7 +281,7 @@ func New(path string, baseKey []byte, o *Options, logger logging.Logger) (db *DB
 	// pull index allows history and live syncing per po bin
 	db.pullIndex, err = db.shed.NewIndex("PO|BinID->Hash|Tag", shed.IndexFuncs{
 		EncodeKey: func(fields shed.Item) (key []byte, err error) {
-			key = make([]byte, 41)
+			key = make([]byte, 9)
 			key[0] = db.po(swarm.NewAddress(fields.Address))
 			binary.BigEndian.PutUint64(key[1:9], fields.BinID)
 			return key, nil
@@ -401,6 +417,31 @@ func New(path string, baseKey []byte, o *Options, logger logging.Logger) (db *DB
 		return nil, err
 	}
 
+	// postage batch
+	db.postageBatchChunksIndex, err = db.shed.NewIndex("BatchID|PO|Hash->nil", shed.IndexFuncs{
+		EncodeKey: func(fields shed.Item) (key []byte, err error) {
+			key = make([]byte, 65)
+			copy(key[:32], fields.BatchID)
+			key[32] = db.po(swarm.NewAddress(fields.Address))
+			copy(key[33:], fields.Address)
+			return key, nil
+		},
+		DecodeKey: func(key []byte) (e shed.Item, err error) {
+			e.BatchID = key[:32]
+			e.Address = key[33:65]
+			return e, nil
+		},
+		EncodeValue: func(fields shed.Item) (value []byte, err error) {
+			return nil, nil
+		},
+		DecodeValue: func(keyItem shed.Item, value []byte) (e shed.Item, err error) {
+			return e, nil
+		},
+	})
+	if err != nil {
+		return nil, err
+	}
+
 	// start garbage collection worker
 	go db.collectGarbageWorker()
 	return db, nil
@@ -446,13 +487,14 @@ func (db *DB) po(addr swarm.Address) (bin uint8) {
 func (db *DB) DebugIndices() (indexInfo map[string]int, err error) {
 	indexInfo = make(map[string]int)
 	for k, v := range map[string]shed.Index{
-		"retrievalDataIndex":   db.retrievalDataIndex,
-		"retrievalAccessIndex": db.retrievalAccessIndex,
-		"pushIndex":            db.pushIndex,
-		"pullIndex":            db.pullIndex,
-		"gcIndex":              db.gcIndex,
-		"gcExcludeIndex":       db.gcExcludeIndex,
-		"pinIndex":             db.pinIndex,
+		"retrievalDataIndex":      db.retrievalDataIndex,
+		"retrievalAccessIndex":    db.retrievalAccessIndex,
+		"pushIndex":               db.pushIndex,
+		"pullIndex":               db.pullIndex,
+		"gcIndex":                 db.gcIndex,
+		"gcExcludeIndex":          db.gcExcludeIndex,
+		"pinIndex":                db.pinIndex,
+		"postageBatchChunksIndex": db.postageBatchChunksIndex,
 	} {
 		indexSize, err := v.Count()
 		if err != nil {
@@ -475,6 +517,9 @@ func chunkToItem(ch swarm.Chunk) shed.Item {
 		Address: ch.Address().Bytes(),
 		Data:    ch.Data(),
 		Tag:     ch.TagID(),
+		// PinCounter: ch.PinCounter(),
+		BatchID: ch.Stamp().BatchID(),
+		Sig:     ch.Stamp().Sig(),
 	}
 }
 
