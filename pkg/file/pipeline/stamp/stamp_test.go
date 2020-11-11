@@ -5,8 +5,7 @@
 package stamp_test
 
 import (
-	"crypto/rand"
-	"io"
+	"bytes"
 	"testing"
 
 	"github.com/ethersphere/bee/pkg/crypto"
@@ -16,6 +15,8 @@ import (
 	"github.com/ethersphere/bee/pkg/postage"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
+
+var id = []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}
 
 func TestStampWriter(t *testing.T) {
 	privKey, err := crypto.GenerateSecp256k1Key()
@@ -31,7 +32,7 @@ func TestStampWriter(t *testing.T) {
 	var (
 		signer          = crypto.NewDefaultSigner(privKey)
 		mockChainWriter = mock.NewChainWriter()
-		st              = newTestStampIssuer(t)
+		st              = postage.NewStampIssuer("label", "keyID", id, 16, 8)
 		stamper         = postage.NewStamper(st, signer)
 		writer          = stamp.NewStampWriter(stamper, mockChainWriter)
 	)
@@ -40,6 +41,10 @@ func TestStampWriter(t *testing.T) {
 	err = writer.ChainWrite(&args)
 	if err := args.Stamp.Valid(swarm.NewAddress(args.Ref), owner); err != nil {
 		t.Fatal(err)
+	}
+
+	if !bytes.Equal(args.Stamp.BatchID, id) {
+		t.Fatalf("want batch id %v got %v", id, args.Stamp.BatchID)
 	}
 
 	if calls := mockChainWriter.ChainWriteCalls(); calls != 1 {
@@ -58,14 +63,4 @@ func TestSum(t *testing.T) {
 	if calls := mockChainWriter.SumCalls(); calls != 1 {
 		t.Fatalf("wanted 1 Sum call but got %d", calls)
 	}
-}
-
-func newTestStampIssuer(t *testing.T) *postage.StampIssuer {
-	t.Helper()
-	id := make([]byte, 32)
-	_, err := io.ReadFull(rand.Reader, id)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return postage.NewStampIssuer("label", "keyID", id, 16, 8)
 }
