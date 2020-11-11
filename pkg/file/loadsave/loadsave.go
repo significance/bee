@@ -16,41 +16,25 @@ import (
 // package abstractions. use with caution since Loader will
 // load all of the subtrie of a given hash in memory.
 type loadSave struct {
-	load file.Loader
-	save file.Saver
+	ctx       context.Context
+	storer    storage.Storer
+	mode      storage.ModePut
+	encrypted bool
 }
 
 func New(ctx context.Context, storer storage.Storer, mode storage.ModePut, enc bool) file.LoadSaver {
 	return &loadSave{
-		load: NewLoader(ctx, storer),
-		save: NewSaver(ctx, storer, mode, enc),
+		ctx:       ctx,
+		storer:    storer,
+		mode:      mode,
+		encrypted: enc,
 	}
 }
 
 func (ls *loadSave) Load(ref []byte) ([]byte, error) {
-	return ls.load.Load(ref)
-}
+	ctx := ls.ctx
 
-func (ls *loadSave) Save(data []byte) ([]byte, error) {
-	return ls.save.Save(data)
-}
-
-type load struct {
-	ctx    context.Context
-	storer storage.Storer
-}
-
-func NewLoader(ctx context.Context, storer storage.Storer) file.Loader {
-	return &load{
-		ctx:    ctx,
-		storer: storer,
-	}
-}
-
-func (l *load) Load(ref []byte) ([]byte, error) {
-	ctx := l.ctx
-
-	j, _, err := joiner.New(ctx, l.storer, swarm.NewAddress(ref))
+	j, _, err := joiner.New(ctx, ls.storer, swarm.NewAddress(ref))
 	if err != nil {
 		return nil, err
 	}
@@ -64,25 +48,9 @@ func (l *load) Load(ref []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-type save struct {
-	ctx       context.Context
-	storer    storage.Storer
-	mode      storage.ModePut
-	encrypted bool
-}
-
-func NewSaver(ctx context.Context, storer storage.Storer, mode storage.ModePut, enc bool) file.Saver {
-	return &save{
-		ctx:       ctx,
-		storer:    storer,
-		mode:      mode,
-		encrypted: enc,
-	}
-}
-
-func (s *save) Save(data []byte) ([]byte, error) {
-	pipe := builder.NewPipelineBuilder(s.ctx, s.storer, s.mode, s.encrypted)
-	address, err := builder.FeedPipeline(s.ctx, pipe, bytes.NewReader(data), int64(len(data)))
+func (ls *loadSave) Save(data []byte) ([]byte, error) {
+	pipe := builder.NewPipelineBuilder(ls.ctx, ls.storer, ls.mode, ls.encrypted)
+	address, err := builder.FeedPipeline(ls.ctx, pipe, bytes.NewReader(data), int64(len(data)))
 
 	if err != nil {
 		return swarm.ZeroAddress.Bytes(), err

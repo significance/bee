@@ -202,7 +202,8 @@ func lookaheadBufferSize(size int64) int {
 
 type pipelineFunc func(io.Reader, int64) (swarm.Address, error)
 
-func requestPipelineFn(ctx context.Context, s storage.Storer, mode storage.ModePut, encrypt bool) pipelineFunc {
+func requestPipelineFn(ctx context.Context, s storage.Storer, r *http.Request) pipelineFunc {
+	mode, encrypt := requestModePut(r), requestEncrypt(r)
 	return func(r io.Reader, l int64) (swarm.Address, error) {
 		pipe := builder.NewPipelineBuilder(ctx, s, mode, encrypt)
 		return builder.FeedPipeline(ctx, pipe, r, l)

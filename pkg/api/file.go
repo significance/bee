@@ -150,7 +150,7 @@ func (s *server) fileUploadHandler(w http.ResponseWriter, r *http.Request) {
 		reader = tmp
 	}
 
-	p := requestPipelineFn(ctx, s.Storer, requestModePut(r), requestEncrypt(r))
+	p := requestPipelineFn(ctx, s.Storer, r)
 
 	// first store the file and get its reference
 	fr, err := p(reader, int64(fileSize))

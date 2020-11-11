@@ -60,7 +60,7 @@ func (s *server) dirUploadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Add the tag to the context
 	ctx := sctx.SetTag(r.Context(), tag)
-	p := requestPipelineFn(ctx, s.Storer, requestModePut(r), requestEncrypt(r))
+	p := requestPipelineFn(ctx, s.Storer, r)
 	l := loadsave.New(ctx, s.Storer, requestModePut(r), requestEncrypt(r))
 	reference, err := storeDir(ctx, r.Body, s.Logger, p, l, r.Header.Get(SwarmIndexDocumentHeader), r.Header.Get(SwarmErrorDocumentHeader))
 	if err != nil {

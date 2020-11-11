@@ -19,11 +19,13 @@ import (
 	"github.com/ethersphere/bee/pkg/collection/entry"
 	"github.com/ethersphere/bee/pkg/file"
 	"github.com/ethersphere/bee/pkg/file/joiner"
+	"github.com/ethersphere/bee/pkg/file/loadsave"
 	"github.com/ethersphere/bee/pkg/jsonhttp"
 	"github.com/ethersphere/bee/pkg/jsonhttp/jsonhttptest"
 	"github.com/ethersphere/bee/pkg/logging"
 	"github.com/ethersphere/bee/pkg/manifest"
 	statestore "github.com/ethersphere/bee/pkg/statestore/mock"
+	"github.com/ethersphere/bee/pkg/storage"
 	"github.com/ethersphere/bee/pkg/storage/mock"
 	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/ethersphere/bee/pkg/tags"
@@ -279,11 +281,9 @@ func TestDirs(t *testing.T) {
 
 			// verify manifest content
 			verifyManifest, err := manifest.NewManifestReference(
-				context.Background(),
 				manifest.DefaultManifestType,
 				e.Reference(),
-				false,
-				storer,
+				loadsave.New(context.Background(), storer, storage.ModePutRequest, false),
 			)
 			if err != nil {
 				t.Fatal(err)
