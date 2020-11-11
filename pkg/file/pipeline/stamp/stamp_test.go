@@ -5,7 +5,7 @@
 package stamp_test
 
 import (
-	"context"
+	"crypto/rand"
 	"io"
 	"testing"
 
@@ -13,10 +13,7 @@ import (
 	"github.com/ethersphere/bee/pkg/file/pipeline"
 	"github.com/ethersphere/bee/pkg/file/pipeline/mock"
 	"github.com/ethersphere/bee/pkg/file/pipeline/stamp"
-	"github.com/ethersphere/bee/pkg/file/pipeline/store"
 	"github.com/ethersphere/bee/pkg/postage"
-	mmock "github.com/ethersphere/bee/pkg/statestore/mock"
-	stmock "github.com/ethersphere/bee/pkg/storage/mock"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
 
@@ -33,17 +30,15 @@ func TestStampWriter(t *testing.T) {
 
 	var (
 		signer          = crypto.NewDefaultSigner(privKey)
-		mockStore       = stmock.NewStorer()
-		ms              = mmock.NewStateStore()
 		mockChainWriter = mock.NewChainWriter()
-		ctx             = context.Background()
-		ps              = postage.NewService(ms, 1)
-		writer          = stamp.NewStampWriter(signer, ps, mockChainWriter)
+		st              = newTestStampIssuer(t)
+		stamper         = postage.NewStamper(st, signer)
+		writer          = stamp.NewStampWriter(stamper, mockChainWriter)
 	)
 
 	args := pipeline.PipeWriteArgs{Ref: []byte{1, 2, 3, 4}}
-	err := writer.ChainWrite(&args)
-	if err := args.Stamp.Valid(args.Ref, owner); err != nil {
+	err = writer.ChainWrite(&args)
+	if err := args.Stamp.Valid(swarm.NewAddress(args.Ref), owner); err != nil {
 		t.Fatal(err)
 	}
 
@@ -55,8 +50,7 @@ func TestStampWriter(t *testing.T) {
 // TestSum tests that calling Sum on the store writer results in Sum on the next writer in the chain.
 func TestSum(t *testing.T) {
 	mockChainWriter := mock.NewChainWriter()
-	ctx := context.Background()
-	writer := store.NewStampWriter(mockChainWriter)
+	writer := stamp.NewStampWriter(nil, mockChainWriter)
 	_, err := writer.Sum()
 	if err != nil {
 		t.Fatal(err)
@@ -69,21 +63,9 @@ func TestSum(t *testing.T) {
 func newTestStampIssuer(t *testing.T) *postage.StampIssuer {
 	t.Helper()
 	id := make([]byte, 32)
-	_, err := io.ReadFull(crand.Reader, id)
+	_, err := io.ReadFull(rand.Reader, id)
 	if err != nil {
 		t.Fatal(err)
 	}
-	st := postage.NewStampIssuer("label", "keyID", id, 16, 8)
-	addr := make([]byte, 32)
-	for i := 0; i < 1<<8; i++ {
-		_, err := io.ReadFull(crand.Reader, addr)
-		if err != nil {
-			t.Fatal(err)
-		}
-		err = st.Inc(swarm.NewAddress(addr))
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-	return st
+	return postage.NewStampIssuer("label", "keyID", id, 16, 8)
 }
