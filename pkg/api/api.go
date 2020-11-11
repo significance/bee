@@ -5,6 +5,7 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/ethersphere/bee/pkg/file/pipeline/builder"
 	"github.com/ethersphere/bee/pkg/logging"
 	m "github.com/ethersphere/bee/pkg/metrics"
 	"github.com/ethersphere/bee/pkg/pss"
@@ -196,4 +198,13 @@ func lookaheadBufferSize(size int64) int {
 		return smallFileBufferSize
 	}
 	return largeFileBufferSize
+}
+
+type pipelineFunc func(io.Reader, int64) (swarm.Address, error)
+
+func requestPipelineFn(ctx context.Context, s storage.Storer, mode storage.ModePut, encrypt bool) pipelineFunc {
+	return func(r io.Reader, l int64) (swarm.Address, error) {
+		pipe := builder.NewPipelineBuilder(ctx, s, mode, encrypt)
+		return builder.FeedPipeline(ctx, pipe, r, l)
+	}
 }

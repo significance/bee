@@ -5,10 +5,9 @@
 package manifest
 
 import (
-	"context"
 	"errors"
 
-	"github.com/ethersphere/bee/pkg/storage"
+	"github.com/ethersphere/bee/pkg/file"
 	"github.com/ethersphere/bee/pkg/swarm"
 )
 
@@ -36,7 +35,7 @@ type Interface interface {
 	// HasPrefix tests whether the specified prefix path exists.
 	HasPrefix(string) (bool, error)
 	// Store stores the manifest, returning the resulting address.
-	Store(context.Context, storage.ModePut) (swarm.Address, error)
+	Store() (swarm.Address, error)
 }
 
 // Entry represents a single manifest entry.
@@ -48,24 +47,20 @@ type Entry interface {
 }
 
 // NewDefaultManifest creates a new manifest with default type.
-func NewDefaultManifest(
-	encrypted bool,
-	storer storage.Storer,
-) (Interface, error) {
-	return NewManifest(DefaultManifestType, encrypted, storer)
+func NewDefaultManifest(ls file.LoadSaver) (Interface, error) {
+	return NewManifest(DefaultManifestType, ls)
 }
 
 // NewManifest creates a new manifest.
 func NewManifest(
 	manifestType string,
-	encrypted bool,
-	storer storage.Storer,
+	ls file.LoadSaver,
 ) (Interface, error) {
 	switch manifestType {
 	case ManifestSimpleContentType:
-		return NewSimpleManifest(encrypted, storer)
+		return NewSimpleManifest(ls)
 	case ManifestMantarayContentType:
-		return NewMantarayManifest(encrypted, storer)
+		return NewMantarayManifest(ls)
 	default:
 		return nil, ErrInvalidManifestType
 	}
@@ -73,17 +68,15 @@ func NewManifest(
 
 // NewManifestReference loads existing manifest.
 func NewManifestReference(
-	ctx context.Context,
 	manifestType string,
 	reference swarm.Address,
-	encrypted bool,
-	storer storage.Storer,
+	l file.LoadSaver,
 ) (Interface, error) {
 	switch manifestType {
 	case ManifestSimpleContentType:
-		return NewSimpleManifestReference(ctx, reference, encrypted, storer)
+		return NewSimpleManifestReference(reference, l)
 	case ManifestMantarayContentType:
-		return NewMantarayManifestReference(ctx, reference, encrypted, storer)
+		return NewMantarayManifestReference(reference, l)
 	default:
 		return nil, ErrInvalidManifestType
 	}

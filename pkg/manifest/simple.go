@@ -5,15 +5,10 @@
 package manifest
 
 import (
-	"bytes"
-	"context"
 	"errors"
 	"fmt"
 
 	"github.com/ethersphere/bee/pkg/file"
-	"github.com/ethersphere/bee/pkg/file/joiner"
-	"github.com/ethersphere/bee/pkg/file/pipeline/builder"
-	"github.com/ethersphere/bee/pkg/storage"
 	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/ethersphere/manifest/simple"
 )
@@ -27,35 +22,26 @@ const (
 type simpleManifest struct {
 	manifest simple.Manifest
 
-	encrypted bool
-	storer    storage.Storer
+	ls file.LoadSaver
 }
 
 // NewSimpleManifest creates a new simple manifest.
 func NewSimpleManifest(
-	encrypted bool,
-	storer storage.Storer,
+	ls file.LoadSaver,
 ) (Interface, error) {
 	return &simpleManifest{
-		manifest:  simple.NewManifest(),
-		encrypted: encrypted,
-		storer:    storer,
+		manifest: simple.NewManifest(),
+		ls:       ls,
 	}, nil
 }
 
 // NewSimpleManifestReference loads existing simple manifest.
-func NewSimpleManifestReference(
-	ctx context.Context,
-	reference swarm.Address,
-	encrypted bool,
-	storer storage.Storer,
-) (Interface, error) {
+func NewSimpleManifestReference(ref swarm.Address, l file.LoadSaver) (Interface, error) {
 	m := &simpleManifest{
-		manifest:  simple.NewManifest(),
-		encrypted: encrypted,
-		storer:    storer,
+		manifest: simple.NewManifest(),
+		ls:       l,
 	}
-	err := m.load(ctx, reference)
+	err := m.load(ref)
 	return m, err
 }
 
@@ -70,7 +56,6 @@ func (m *simpleManifest) Add(path string, entry Entry) error {
 }
 
 func (m *simpleManifest) Remove(path string) error {
-
 	err := m.manifest.Remove(path)
 	if err != nil {
 		if errors.Is(err, simple.ErrNotFound) {
@@ -83,7 +68,6 @@ func (m *simpleManifest) Remove(path string) error {
 }
 
 func (m *simpleManifest) Lookup(path string) (Entry, error) {
-
 	n, err := m.manifest.Lookup(path)
 	if err != nil {
 		return nil, ErrNotFound
@@ -103,35 +87,27 @@ func (m *simpleManifest) HasPrefix(prefix string) (bool, error) {
 	return m.manifest.HasPrefix(prefix), nil
 }
 
-func (m *simpleManifest) Store(ctx context.Context, mode storage.ModePut) (swarm.Address, error) {
-
+func (m *simpleManifest) Store() (swarm.Address, error) {
 	data, err := m.manifest.MarshalBinary()
 	if err != nil {
 		return swarm.ZeroAddress, fmt.Errorf("manifest marshal error: %w", err)
 	}
 
-	pipe := builder.NewPipelineBuilder(ctx, m.storer, mode, m.encrypted)
-	address, err := builder.FeedPipeline(ctx, pipe, bytes.NewReader(data), int64(len(data)))
+	ref, err := m.ls.Save(data)
 	if err != nil {
 		return swarm.ZeroAddress, fmt.Errorf("manifest save error: %w", err)
 	}
 
-	return address, nil
+	return swarm.NewAddress(ref), nil
 }
 
-func (m *simpleManifest) load(ctx context.Context, reference swarm.Address) error {
-	j, _, err := joiner.New(ctx, m.storer, reference)
-	if err != nil {
-		return fmt.Errorf("new joiner: %w", err)
-	}
-
-	buf := bytes.NewBuffer(nil)
-	_, err = file.JoinReadAll(ctx, j, buf)
+func (m *simpleManifest) load(reference swarm.Address) error {
+	buf, err := m.ls.Load(reference.Bytes())
 	if err != nil {
 		return fmt.Errorf("manifest load error: %w", err)
 	}
 
-	err = m.manifest.UnmarshalBinary(buf.Bytes())
+	err = m.manifest.UnmarshalBinary(buf)
 	if err != nil {
 		return fmt.Errorf("manifest unmarshal error: %w", err)
 	}

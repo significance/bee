@@ -18,9 +18,11 @@ import (
 	"github.com/ethersphere/bee/pkg/collection/entry"
 	"github.com/ethersphere/bee/pkg/file"
 	"github.com/ethersphere/bee/pkg/file/joiner"
+	"github.com/ethersphere/bee/pkg/file/loadsave"
 	"github.com/ethersphere/bee/pkg/jsonhttp"
 	"github.com/ethersphere/bee/pkg/manifest"
 	"github.com/ethersphere/bee/pkg/sctx"
+	"github.com/ethersphere/bee/pkg/storage"
 	"github.com/ethersphere/bee/pkg/swarm"
 	"github.com/ethersphere/bee/pkg/tracing"
 )
@@ -48,9 +50,6 @@ func (s *server) bzzDownloadHandler(w http.ResponseWriter, r *http.Request) {
 		jsonhttp.NotFound(w, nil)
 		return
 	}
-
-	// this is a hack and is needed because encryption is coupled into manifests
-	toDecrypt := len(address.Bytes()) == 64
 
 	// read manifest entry
 	j, _, err := joiner.New(ctx, s.Storer, address)
@@ -107,11 +106,9 @@ func (s *server) bzzDownloadHandler(w http.ResponseWriter, r *http.Request) {
 
 	// we are expecting manifest Mime type here
 	m, err := manifest.NewManifestReference(
-		ctx,
 		manifestMetadata.MimeType,
 		e.Reference(),
-		toDecrypt,
-		s.Storer,
+		loadsave.New(ctx, s.Storer, storage.ModePutRequest, false), // mode and encryption values are fallback
 	)
 	if err != nil {
 		logger.Debugf("bzz download: not manifest %s: %v", address, err)
