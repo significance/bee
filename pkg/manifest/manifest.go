@@ -5,6 +5,7 @@
 package manifest
 
 import (
+	"context"
 	"errors"
 
 	"github.com/ethersphere/bee/pkg/file"
@@ -27,7 +28,7 @@ type Interface interface {
 	// Type returns manifest implementation type information
 	Type() string
 	// Add a manifest entry to the specified path.
-	Add(string, Entry) error
+	Add(context.Context, string, Entry) error
 	// Remove a manifest entry on the specified path.
 	Remove(string) error
 	// Lookup returns a manifest entry if one is found in the specified path.
@@ -35,7 +36,7 @@ type Interface interface {
 	// HasPrefix tests whether the specified prefix path exists.
 	HasPrefix(string) (bool, error)
 	// Store stores the manifest, returning the resulting address.
-	Store() (swarm.Address, error)
+	Store(context.Context) (swarm.Address, error)
 }
 
 // Entry represents a single manifest entry.
@@ -70,13 +71,13 @@ func NewManifest(
 func NewManifestReference(
 	manifestType string,
 	reference swarm.Address,
-	l file.LoadSaver,
+	ls file.LoadSaver,
 ) (Interface, error) {
 	switch manifestType {
 	case ManifestSimpleContentType:
-		return NewSimpleManifestReference(reference, l)
+		return NewSimpleManifestReference(reference, ls)
 	case ManifestMantarayContentType:
-		return NewMantarayManifestReference(reference, l)
+		return NewMantarayManifestReference(reference, ls)
 	default:
 		return nil, ErrInvalidManifestType
 	}

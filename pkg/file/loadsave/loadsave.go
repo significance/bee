@@ -16,24 +16,20 @@ import (
 // package abstractions. use with caution since Loader will
 // load all of the subtrie of a given hash in memory.
 type loadSave struct {
-	ctx       context.Context
 	storer    storage.Storer
 	mode      storage.ModePut
 	encrypted bool
 }
 
-func New(ctx context.Context, storer storage.Storer, mode storage.ModePut, enc bool) file.LoadSaver {
+func New(storer storage.Storer, mode storage.ModePut, enc bool) file.LoadSaver {
 	return &loadSave{
-		ctx:       ctx,
 		storer:    storer,
 		mode:      mode,
 		encrypted: enc,
 	}
 }
 
-func (ls *loadSave) Load(ref []byte) ([]byte, error) {
-	ctx := ls.ctx
-
+func (ls *loadSave) Load(ctx context.Context, ref []byte) ([]byte, error) {
 	j, _, err := joiner.New(ctx, ls.storer, swarm.NewAddress(ref))
 	if err != nil {
 		return nil, err
@@ -48,10 +44,9 @@ func (ls *loadSave) Load(ref []byte) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func (ls *loadSave) Save(data []byte) ([]byte, error) {
-	pipe := builder.NewPipelineBuilder(ls.ctx, ls.storer, ls.mode, ls.encrypted)
-	address, err := builder.FeedPipeline(ls.ctx, pipe, bytes.NewReader(data), int64(len(data)))
-
+func (ls *loadSave) Save(ctx context.Context, data []byte) ([]byte, error) {
+	pipe := builder.NewPipelineBuilder(ctx, ls.storer, ls.mode, ls.encrypted)
+	address, err := builder.FeedPipeline(ctx, pipe, bytes.NewReader(data), int64(len(data)))
 	if err != nil {
 		return swarm.ZeroAddress.Bytes(), err
 	}

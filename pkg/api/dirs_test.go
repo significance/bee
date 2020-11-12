@@ -283,7 +283,7 @@ func TestDirs(t *testing.T) {
 			verifyManifest, err := manifest.NewManifestReference(
 				manifest.DefaultManifestType,
 				e.Reference(),
-				loadsave.New(context.Background(), storer, storage.ModePutRequest, false),
+				loadsave.New(storer, storage.ModePutRequest, false),
 			)
 			if err != nil {
 				t.Fatal(err)

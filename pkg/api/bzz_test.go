@@ -99,7 +99,7 @@ func TestBzz(t *testing.T) {
 		}
 
 		// save manifest
-		m, err := manifest.NewDefaultManifest(loadsave.New(ctx, storer, storage.ModePutRequest, false))
+		m, err := manifest.NewDefaultManifest(loadsave.New(storer, storage.ModePutRequest, false))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -111,7 +111,7 @@ func TestBzz(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		manifestBytesReference, err := m.Store()
+		manifestBytesReference, err := m.Store(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
