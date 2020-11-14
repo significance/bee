@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"fmt"
 
 	"github.com/ethersphere/bee/pkg/crypto"
 	"github.com/ethersphere/bee/pkg/jsonhttp"
@@ -25,12 +26,16 @@ var (
 	upgrader = websocket.Upgrader{
 		ReadBufferSize:  swarm.ChunkSize,
 		WriteBufferSize: swarm.ChunkSize,
+		CheckOrigin: func(r *http.Request) bool {
+			fmt.Println(r.Header["Origin"])
+			return true
+		},
 	}
 	writeDeadline   = 4 * time.Second // write deadline. should be smaller than the shutdown timeout on api close
 	targetMaxLength = 2               // max target length in bytes, in order to prevent grieving by excess computation
 )
 
-func (s *server) pssPostHandler(w http.ResponseWriter, r *http.Request) {
+func (s *server) pssPostHandler(w http.ResponseWriter, r *http.Request q) {
 	topicVar := mux.Vars(r)["topic"]
 	topic := pss.NewTopic(topicVar)
 
@@ -86,6 +91,7 @@ func (s *server) pssPostHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *server) pssWsHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println(r.Header)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		s.Logger.Debugf("pss ws: upgrade: %v", err)
