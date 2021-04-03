@@ -170,15 +170,21 @@ func prepareTransaction(ctx context.Context, request *TxRequest, from common.Add
 		gasLimit = request.GasLimit
 	}
 
-	var gasPrice *big.Int
-	if request.GasPrice == nil {
-		gasPrice, err = backend.SuggestGasPrice(ctx)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		gasPrice = request.GasPrice
-	}
+	// var gasPrice *big.Int
+
+	gasPrice := new(big.Int)
+	gasPrice.SetString("3000000000", 10) // octal
+	
+	// if request.GasPrice == nil {
+	// 	gasPrice, err = backend.SuggestGasPrice(ctx)
+	// 	fmt.Println(gasPrice)
+	//     fmt.Printf("%T\n", gasPrice)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
+	// } else {
+	// 	gasPrice = request.GasPrice
+	// }
 
 	if request.To != nil {
 		return types.NewTransaction(
