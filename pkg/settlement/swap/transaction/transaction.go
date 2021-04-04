@@ -173,7 +173,7 @@ func prepareTransaction(ctx context.Context, request *TxRequest, from common.Add
 	// var gasPrice *big.Int
 
 	gasPrice := new(big.Int)
-	gasPrice.SetString("3000000000", 10) // octal
+	gasPrice.SetString("10000000000", 10) // octal
 	
 	// if request.GasPrice == nil {
 	// 	gasPrice, err = backend.SuggestGasPrice(ctx)
