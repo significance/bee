@@ -37,9 +37,9 @@ import (
 	"github.com/ethersphere/bee/pkg/pingpong"
 	"github.com/ethersphere/bee/pkg/pricing"
 	"github.com/ethersphere/bee/pkg/pss"
-	"github.com/ethersphere/bee/pkg/puller"
-	"github.com/ethersphere/bee/pkg/pullsync"
-	"github.com/ethersphere/bee/pkg/pullsync/pullstorage"
+	// "github.com/ethersphere/bee/pkg/puller"
+	// "github.com/ethersphere/bee/pkg/pullsync"
+	// "github.com/ethersphere/bee/pkg/pullsync/pullstorage"
 	"github.com/ethersphere/bee/pkg/pusher"
 	"github.com/ethersphere/bee/pkg/pushsync"
 	"github.com/ethersphere/bee/pkg/recovery"
@@ -437,18 +437,18 @@ func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, 
 	pushSyncPusher := pusher.New(storer, kad, pushSyncProtocol, tagService, logger, tracer)
 	b.pusherCloser = pushSyncPusher
 
-	pullStorage := pullstorage.New(storer)
+	// pullStorage := pullstorage.New(storer)
 
-	pullSync := pullsync.New(p2ps, pullStorage, pssService.TryUnwrap, logger)
-	b.pullSyncCloser = pullSync
+	// pullSync := pullsync.New(p2ps, pullStorage, pssService.TryUnwrap, logger)
+	// b.pullSyncCloser = pullSync
 
-	if err = p2ps.AddProtocol(pullSync.Protocol()); err != nil {
-		return nil, fmt.Errorf("pullsync protocol: %w", err)
-	}
+	// if err = p2ps.AddProtocol(pullSync.Protocol()); err != nil {
+	// 	return nil, fmt.Errorf("pullsync protocol: %w", err)
+	// }
 
-	puller := puller.New(stateStore, kad, pullSync, logger, puller.Options{})
+	// puller := puller.New(stateStore, kad, pullSync, logger, puller.Options{})
 
-	b.pullerCloser = puller
+	// b.pullerCloser = puller
 
 	multiResolver := multiresolver.NewMultiResolver(
 		multiresolver.WithConnectionConfigs(o.ResolverConnectionCfgs),
@@ -496,10 +496,10 @@ func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, 
 		debugAPIService.MustRegisterMetrics(pingPong.Metrics()...)
 		debugAPIService.MustRegisterMetrics(acc.Metrics()...)
 		debugAPIService.MustRegisterMetrics(storer.Metrics()...)
-		debugAPIService.MustRegisterMetrics(puller.Metrics()...)
+		// debugAPIService.MustRegisterMetrics(puller.Metrics()...)
 		debugAPIService.MustRegisterMetrics(pushSyncProtocol.Metrics()...)
 		debugAPIService.MustRegisterMetrics(pushSyncPusher.Metrics()...)
-		debugAPIService.MustRegisterMetrics(pullSync.Metrics()...)
+		// debugAPIService.MustRegisterMetrics(pullSync.Metrics()...)
 		debugAPIService.MustRegisterMetrics(retrieve.Metrics()...)
 
 		if pssServiceMetrics, ok := pssService.(metrics.Collector); ok {
@@ -568,13 +568,13 @@ func (b *Bee) Shutdown(ctx context.Context) error {
 		errs.add(fmt.Errorf("pusher: %w", err))
 	}
 
-	if err := b.pullerCloser.Close(); err != nil {
-		errs.add(fmt.Errorf("puller: %w", err))
-	}
+	// if err := b.pullerCloser.Close(); err != nil {
+	// 	errs.add(fmt.Errorf("puller: %w", err))
+	// }
 
-	if err := b.pullSyncCloser.Close(); err != nil {
-		errs.add(fmt.Errorf("pull sync: %w", err))
-	}
+	// if err := b.pullSyncCloser.Close(); err != nil {
+	// 	errs.add(fmt.Errorf("pull sync: %w", err))
+	// }
 
 	if err := b.pssCloser.Close(); err != nil {
 		errs.add(fmt.Errorf("pss: %w", err))
