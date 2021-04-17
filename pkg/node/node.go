@@ -68,6 +68,7 @@ type Bee struct {
 	debugAPIServer        *http.Server
 	resolverCloser        io.Closer
 	errorLogWriter        *io.PipeWriter
+	saneErrorLogWriter    *io.PipeWriter
 	tracerCloser          io.Closer
 	tagsCloser            io.Closer
 	stateStoreCloser      io.Closer
@@ -98,6 +99,7 @@ type Options struct {
 	Bootnodes                []string
 	CORSAllowedOrigins       []string
 	Logger                   logging.Logger
+	SLogger                  logging.SLogger
 	Standalone               bool
 	TracingEnabled           bool
 	TracingEndpoint          string
@@ -115,7 +117,7 @@ type Options struct {
 	SwapEnable               bool
 }
 
-func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, signer crypto.Signer, networkID uint64, logger logging.Logger, libp2pPrivateKey, pssPrivateKey *ecdsa.PrivateKey, o Options) (b *Bee, err error) {
+func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, signer crypto.Signer, networkID uint64, logger logging.Logger, slogger logging.SLogger, libp2pPrivateKey, pssPrivateKey *ecdsa.PrivateKey, o Options) (b *Bee, err error) {
 	tracer, tracerCloser, err := tracing.NewTracer(&tracing.Options{
 		Enabled:     o.TracingEnabled,
 		Endpoint:    o.TracingEndpoint,
@@ -138,9 +140,11 @@ func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, 
 	b = &Bee{
 		p2pCancel:      p2pCancel,
 		errorLogWriter: logger.WriterLevel(logrus.ErrorLevel),
+		saneErrorLogWriter: slogger.WriterLevel(logrus.ErrorLevel),
 		tracerCloser:   tracerCloser,
 	}
 
+	//bee-sane start debug API
 	var debugAPIService *debugapi.Service
 	if o.DebugAPIAddr != "" {
 		overlayEthAddress, err := signer.EthereumAddress()
@@ -169,17 +173,21 @@ func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, 
 				logger.Debugf("debug api server: %v", err)
 				logger.Error("unable to serve debug api")
 			}
+
+			slogger.Infof("⚙ debug api listening                                                         %s ✔", debugAPIListener.Addr())
 		}()
 
 		b.debugAPIServer = debugAPIServer
 	}
 
+	//start the state store, this stores.... ?
 	stateStore, err := InitStateStore(logger, o.DataDir)
 	if err != nil {
 		return nil, err
 	}
 	b.stateStoreCloser = stateStore
 
+	//make sure it's the right overlay address for this store if already initialised
 	err = CheckOverlayWithStore(swarmAddress, stateStore)
 	if err != nil {
 		return nil, err
@@ -196,6 +204,7 @@ func NewBee(addr string, swarmAddress swarm.Address, publicKey ecdsa.PublicKey, 
 	var chequeStore chequebook.ChequeStore
 	var cashoutService chequebook.CashoutService
 
+	//bee-sane enable swap
 	if o.SwapEnable {
 		swapBackend, overlayEthAddress, chainID, transactionService, err = InitChain(
 			p2pCtx,

@@ -68,6 +68,24 @@ func (c *command) initStartCmd() (err error) {
 				return fmt.Errorf("unknown verbosity level %q", v)
 			}
 
+			var sane_logger logging.SLogger
+			switch v := strings.ToLower(c.config.GetString(optionNameVerbosity)); v {
+			case "0", "silent":
+				sane_logger = logging.BeeSane(ioutil.Discard, 0)
+			case "1", "error":
+				sane_logger = logging.BeeSane(cmd.OutOrStdout(), logrus.ErrorLevel)
+			case "2", "warn":
+				sane_logger = logging.BeeSane(cmd.OutOrStdout(), logrus.WarnLevel)
+			case "3", "info":
+				sane_logger = logging.BeeSane(cmd.OutOrStdout(), logrus.InfoLevel)
+			case "4", "debug":
+				sane_logger = logging.BeeSane(cmd.OutOrStdout(), logrus.DebugLevel)
+			case "5", "trace":
+				sane_logger = logging.BeeSane(cmd.OutOrStdout(), logrus.TraceLevel)
+			default:
+				return fmt.Errorf("unknown verbosity level %q", v)
+			}
+
 			isWindowsService, err := isWindowsService()
 			if err != nil {
 				return fmt.Errorf("failed to determine if we are running in service: %w", err)
@@ -120,7 +138,7 @@ Welcome to the Swarm.... Bzzz Bzzzz Bzzzz
 				return err
 			}
 
-			b, err := node.NewBee(c.config.GetString(optionNameP2PAddr), signerConfig.address, *signerConfig.publicKey, signerConfig.signer, c.config.GetUint64(optionNameNetworkID), logger, signerConfig.libp2pPrivateKey, signerConfig.pssPrivateKey, node.Options{
+			b, err := node.NewBee(c.config.GetString(optionNameP2PAddr), signerConfig.address, *signerConfig.publicKey, signerConfig.signer, c.config.GetUint64(optionNameNetworkID), logger, sane_logger, signerConfig.libp2pPrivateKey, signerConfig.pssPrivateKey, node.Options{
 				DataDir:                  c.config.GetString(optionNameDataDir),
 				DBCapacity:               c.config.GetUint64(optionNameDBCapacity),
 				DBOpenFilesLimit:         c.config.GetUint64(optionNameDBOpenFilesLimit),
@@ -141,6 +159,7 @@ Welcome to the Swarm.... Bzzz Bzzzz Bzzzz
 				TracingEndpoint:          c.config.GetString(optionNameTracingEndpoint),
 				TracingServiceName:       c.config.GetString(optionNameTracingServiceName),
 				Logger:                   logger,
+				SLogger:                  sane_logger,
 				GlobalPinningEnabled:     c.config.GetBool(optionNameGlobalPinningEnabled),
 				PaymentThreshold:         c.config.GetString(optionNamePaymentThreshold),
 				PaymentTolerance:         c.config.GetString(optionNamePaymentTolerance),
