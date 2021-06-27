@@ -17,6 +17,7 @@
 package localstore
 
 import (
+	"fmt"
 	"context"
 	"sync"
 	"time"
@@ -80,6 +81,7 @@ func (db *DB) SubscribePush(ctx context.Context) (c <-chan swarm.Chunk, stop fun
 					select {
 					case chunks <- swarm.NewChunk(swarm.NewAddress(dataItem.Address), dataItem.Data).WithTagID(item.Tag).WithStamp(stamp):
 						count++
+						fmt.Println("PUSHIZ",count)
 						// set next iteration start item
 						// when its chunk is successfully sent to channel
 						sinceItem = &item
@@ -93,6 +95,7 @@ func (db *DB) SubscribePush(ctx context.Context) (c <-chan swarm.Chunk, stop fun
 						// on database close
 						return true, nil
 					case <-ctx.Done():
+						fmt.Println("PUSHIZ DONE",count)
 						return true, ctx.Err()
 					}
 				}, &shed.IterateOptions{

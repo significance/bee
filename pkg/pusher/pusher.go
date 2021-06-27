@@ -258,6 +258,8 @@ LOOP:
 			// initially timer is set to go off as well as every time we hit the end of push index
 			startTime := time.Now()
 
+			fmt.Println("PUSHIZ","now")
+
 			// if subscribe was running, stop it
 			if unsubscribe != nil {
 				unsubscribe()

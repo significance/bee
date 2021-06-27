@@ -433,6 +433,8 @@ func (s *server) downloadHandler(w http.ResponseWriter, r *http.Request, referen
 		r = r.WithContext(sctx.SetTargets(r.Context(), targets))
 	}
 
+	
+	
 	reader, l, err := joiner.New(r.Context(), s.storer, reference)
 	if err != nil {
 		if errors.Is(err, storage.ErrNotFound) {
@@ -539,4 +541,71 @@ func (s *server) bzzPatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	jsonhttp.OK(w, nil)
+}
+
+
+
+type ChunkResponse struct {
+	Address    string         `json:"address"`
+}
+
+type ChunksResponse struct {
+	Chunks []ChunkResponse `json:"chunks"`
+}
+
+
+func mapChunks(chunks []swarm.Chunk) (out []ChunkResponse) {
+	for _, chunk := range chunks {
+		fmt.Println(chunk)
+		out = append(out, ChunkResponse{
+			Address:  fmt.Sprintf("%v", chunk.Address()),
+		})
+	}
+	return out
+}
+
+func (s *server) chunkInfoHandler(w http.ResponseWriter, r *http.Request) {
+	nameOrHex := mux.Vars(r)["address"]
+	address, err := s.resolveNameOrAddress(nameOrHex)
+	if err != nil {
+		s.logger.Debugf("bzz patch: parse address %s: %v", nameOrHex, err)
+		s.logger.Error("bzz patch: parse address")
+		jsonhttp.NotFound(w, nil)
+		return
+	}
+	chunks, err := s.steward.Info(r.Context(), address)
+	// err = s.steward.Reupload(r.Context(), address)
+	if err != nil {
+		s.logger.Debugf("bzz patch: reupload %s: %v", address.String(), err)
+		s.logger.Error("bzz patch: reupload")
+		jsonhttp.InternalServerError(w, nil)
+		return
+	}
+	fmt.Println("reupload", chunks)
+	jsonhttp.OK(w, ChunksResponse{
+		Chunks: mapChunks(chunks),
+	})
+}
+
+func (s *server) pushIndexInfoHandler(w http.ResponseWriter, r *http.Request) {
+	// nameOrHex := mux.Vars(r)["address"]
+	// address, err := s.resolveNameOrAddress(nameOrHex)
+	// if err != nil {
+	// 	s.logger.Debugf("bzz patch: parse address %s: %v", nameOrHex, err)
+	// 	s.logger.Error("bzz patch: parse address")
+	// 	jsonhttp.NotFound(w, nil)
+	// 	return
+	// }
+	_ = s.steward.PushInfo(r.Context())
+	// // err = s.steward.Reupload(r.Context(), address)
+	// if err != nil {
+	// 	s.logger.Debugf("bzz patch: reupload %s: %v", address.String(), err)
+	// 	s.logger.Error("bzz patch: reupload")
+	// 	jsonhttp.InternalServerError(w, nil)
+	// 	return
+	// }
+	// fmt.Println("reupload", chunks)
+	jsonhttp.OK(w,
+		nil,
+	)
 }

@@ -26,6 +26,8 @@ type Reuploader interface {
 	// Reupload root hash and all of its underlying
 	// associated chunks to the network.
 	Reupload(context.Context, swarm.Address) error
+	Info(context.Context, swarm.Address) ([]swarm.Chunk, error)
+	PushInfo(context.Context) error
 }
 
 type steward struct {
@@ -46,7 +48,11 @@ func New(getter storage.Getter, t traversal.Traverser, p pushsync.PushSyncer) Re
 func (s *steward) Reupload(ctx context.Context, root swarm.Address) error {
 	sem := make(chan struct{}, parallelPush)
 	eg, _ := errgroup.WithContext(ctx)
+	fmt.Println("reupload", "test")
 	fn := func(addr swarm.Address) error {
+
+		fmt.Println("reupload", addr)
+
 		c, err := s.getter.Get(ctx, storage.ModeGetSync, addr)
 		if err != nil {
 			return err
@@ -74,5 +80,125 @@ func (s *steward) Reupload(ctx context.Context, root swarm.Address) error {
 	if err := eg.Wait(); err != nil {
 		return fmt.Errorf("push error during reupload: %w", err)
 	}
+	return nil
+}
+
+
+type chunkResponse struct {
+	Chunk    swarm.Chunk         `json:"chunk"`
+}
+
+func (s *steward) Info(ctx context.Context, root swarm.Address) ([]swarm.Chunk, error) {
+	// sem := make(chan struct{}, parallelPush)
+	// eg, _ := errgroup.WithContext(ctx)
+	fmt.Println("reupload", "test")
+	// fn := func(addr swarm.Address) error {
+
+	// 	fmt.Println("reupload", addr)
+
+	// 	c, err := s.getter.Get(ctx, storage.ModeGetSync, addr)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	sem <- struct{}{}
+	// 	eg.Go(func() error {
+	// 		defer func() { <-sem }()
+	// 		_, err := s.push.PushChunkToClosest(ctx, c)
+	// 		if err != nil {
+	// 			if !errors.Is(err, topology.ErrWantSelf) {
+	// 				return err
+	// 			}
+	// 			// swallow the error in case we are the closest node
+	// 		}
+	// 		return nil
+	// 	})
+	// 	return nil
+	// }
+
+	var chunks []swarm.Chunk
+
+	fn := func(addr swarm.Address) error {
+
+		// fmt.Println("reupload", addr)
+
+		c, err := s.getter.Get(ctx, storage.ModeGetSync, addr)
+		if err != nil {
+			return err
+		}
+
+		chunks = append(chunks, c)
+		return nil
+	}
+
+
+	if err := s.traverser.Traverse(ctx, root, fn); err != nil {
+		return nil, fmt.Errorf("traversal of %s failed: %w", root.String(), err)
+	}
+
+	fmt.Println("reupload", chunks)
+
+	// if err := eg.Wait(); err != nil {
+	// 	return fmt.Errorf("push error during reupload: %w", err)
+	// }
+	return chunks, nil
+}
+
+func (s *steward) PushInfo(ctx context.Context) (error) {
+	// sem := make(chan struct{}, parallelPush)
+	// eg, _ := errgroup.WithContext(ctx)
+	// fmt.Println("reupload", "pushtest")
+
+	// c, err := s.getter.Get(ctx, storage.ModeGetSync)
+
+	// fn := func(addr swarm.Address) error {
+
+	// 	fmt.Println("reupload", addr)
+
+	// 	c, err := s.getter.Get(ctx, storage.ModeGetSync, addr)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	sem <- struct{}{}
+	// 	eg.Go(func() error {
+	// 		defer func() { <-sem }()
+	// 		_, err := s.push.PushChunkToClosest(ctx, c)
+	// 		if err != nil {
+	// 			if !errors.Is(err, topology.ErrWantSelf) {
+	// 				return err
+	// 			}
+	// 			// swallow the error in case we are the closest node
+	// 		}
+	// 		return nil
+	// 	})
+	// 	return nil
+	// }
+
+	// var chunks []swarm.Chunk
+
+	// fn := func(addr swarm.Address) error {
+
+	// 	// fmt.Println("reupload", addr)
+
+	// 	c, err := s.getter.Get(ctx, storage.ModeGetSync, addr)
+	// 	if err != nil {
+	// 		return err
+	// 	}
+
+	// 	chunks = append(chunks, c)
+	// 	return nil
+	// }
+
+
+	// if err := s.traverser.Traverse(ctx, root, fn); err != nil {
+	// 	return nil, fmt.Errorf("traversal of %s failed: %w", root.String(), err)
+	// }
+
+	// fmt.Println("reupload", chunks)
+
+	// if err := eg.Wait(); err != nil {
+	// 	return fmt.Errorf("push error during reupload: %w", err)
+	// }
 	return nil
 }

@@ -104,6 +104,15 @@ func (s *server) setupRouting() {
 		),
 	})
 
+	handle("/info/chunk/{address}", jsonhttp.MethodHandler{
+		"GET": http.HandlerFunc(s.chunkInfoHandler),
+	})
+
+	handle("/info/pushindex", jsonhttp.MethodHandler{
+		"GET": http.HandlerFunc(s.pushIndexInfoHandler),
+	})
+
+
 	handle("/pss/send/{topic}/{targets}", web.ChainHandlers(
 		s.gatewayModeForbidEndpointHandler,
 		web.FinalHandler(jsonhttp.MethodHandler{

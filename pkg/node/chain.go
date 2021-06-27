@@ -95,6 +95,7 @@ func InitChequebookFactory(
 	var legacyFactories []common.Address
 
 	foundFactory, foundLegacyFactories, found := chequebook.DiscoverFactoryAddress(chainID)
+	fmt.Println(foundFactory)
 	if factoryAddress == "" {
 		if !found {
 			return nil, errors.New("no known factory address for this network")

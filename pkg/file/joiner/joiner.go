@@ -6,6 +6,7 @@
 package joiner
 
 import (
+	"fmt"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -217,6 +218,8 @@ func (j *joiner) IterateChunkAddresses(fn swarm.AddressIterFunc) error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println("reupload", j.rootData, j.span)
 
 	return j.processChunkAddresses(j.ctx, fn, j.rootData, j.span)
 }
