@@ -70,6 +70,7 @@ func (db *DB) SubscribePush(ctx context.Context) (c <-chan swarm.Chunk, stop fun
 
 				iterStart := time.Now()
 				var count int
+				var total int
 				err := db.pushIndex.Iterate(func(item shed.Item) (stop bool, err error) {
 					// get chunk data
 					dataItem, err := db.retrievalDataIndex.Get(item)
@@ -77,20 +78,24 @@ func (db *DB) SubscribePush(ctx context.Context) (c <-chan swarm.Chunk, stop fun
 						return true, err
 					}
 
+					total++
+
 					stamp := postage.NewStamp(dataItem.BatchID, dataItem.Index, dataItem.Timestamp, dataItem.Sig)
 					select {
 					case chunks <- swarm.NewChunk(swarm.NewAddress(dataItem.Address), dataItem.Data).WithTagID(item.Tag).WithStamp(stamp):
 						count++
-						fmt.Println("PUSHIZ",count)
+						// fmt.Println("PUSHIZ",count)
 						// set next iteration start item
 						// when its chunk is successfully sent to channel
 						sinceItem = &item
 						return false, nil
 					case <-stopChan:
+						fmt.Println("PUSHIZ DONE",count)
 						// gracefully stop the iteration
 						// on stop
 						return true, nil
 					case <-db.close:
+						fmt.Println("PUSHIZ DONE",count)
 						// gracefully stop the iteration
 						// on database close
 						return true, nil
@@ -104,6 +109,8 @@ func (db *DB) SubscribePush(ctx context.Context) (c <-chan swarm.Chunk, stop fun
 					// iterator call, skip it in this one
 					SkipStartFromItem: true,
 				})
+
+				fmt.Println("PUSHIZ DONE X",count, total)
 
 				totalTimeMetric(db.metrics.TotalTimeSubscribePushIteration, iterStart)
 

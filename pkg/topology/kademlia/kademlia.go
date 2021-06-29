@@ -14,6 +14,7 @@ import (
 	"math/bits"
 	"sync"
 	"time"
+	"fmt"
 
 	"github.com/ethersphere/bee/pkg/addressbook"
 	"github.com/ethersphere/bee/pkg/discovery"
@@ -753,6 +754,8 @@ func (k *Kad) connect(ctx context.Context, peer swarm.Address, ma ma.Multiaddr) 
 	defer cancel()
 
 	k.metrics.TotalOutboundConnectionAttempts.Inc()
+
+	fmt.Println("caddress", ma)
 
 	switch i, err := k.p2p.Connect(ctx, ma); {
 	case errors.Is(err, p2p.ErrDialLightNode):
