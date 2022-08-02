@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
@@ -161,6 +162,11 @@ func (s *Service) socUploadHandler(w http.ResponseWriter, r *http.Request) {
 			jsonhttp.InternalServerError(w, "stamp error")
 		}
 		return
+	}
+	saddress := sch.Address()
+	error := ioutil.WriteFile("/home/bee/.bee/chunkcache/"+hex.EncodeToString(saddress.Bytes()), sch.Data(), 0644)
+	if error != nil {
+		panic(error)
 	}
 	sch = sch.WithStamp(stamp)
 	_, err = s.storer.Put(ctx, requestModePut(r), sch)

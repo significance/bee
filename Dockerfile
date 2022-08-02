@@ -21,6 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # make sure mounted volumes have correct permissions
 RUN mkdir -p /home/bee/.bee && chown 999:999 /home/bee/.bee
+RUN mkdir /home/bee/.bee/chunkcache && chown 999:999 /home/bee/.bee/chunkcache
 
 COPY --from=build /src/dist/bee /usr/local/bin/bee
 
