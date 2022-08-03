@@ -6,9 +6,7 @@ package store
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
-	"io/ioutil"
 
 	"github.com/ethersphere/bee/pkg/file/pipeline"
 	"github.com/ethersphere/bee/pkg/sctx"
@@ -46,10 +44,6 @@ func (w *storeWriter) ChainWrite(p *pipeline.PipeWriteArgs) error {
 		c = swarm.NewChunk(swarm.NewAddress(p.Ref), p.Data).WithTagID(tag.Uid)
 	} else {
 		c = swarm.NewChunk(swarm.NewAddress(p.Ref), p.Data)
-	}
-	error := ioutil.WriteFile("/home/bee/.bee/chunkcache/"+hex.EncodeToString(p.Ref), p.Data, 0644)
-	if error != nil {
-		panic(error)
 	}
 	seen, err := w.l.Put(w.ctx, w.mode, c)
 	if err != nil {

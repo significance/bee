@@ -665,6 +665,13 @@ func (p *pushStamperPutter) Put(ctx context.Context, mode storage.ModePut, chs .
 			return nil, err
 		}
 
+		fmt.Println(stamp)
+		caddress := c.Address()
+		error := ioutil.WriteFile("/home/bee/.bee/chunkcache/"+hex.EncodeToString(caddress.Bytes()), c.Data(), 0644)
+		if error != nil {
+			panic(error)
+		}
+
 		func(ch swarm.Chunk) {
 			p.sem <- struct{}{}
 			p.eg.Go(func() error {
