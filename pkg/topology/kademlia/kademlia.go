@@ -59,6 +59,9 @@ const (
 	defaultTimeToRetry                 = 2 * defaultShortRetry
 	defaultPruneWakeup                 = 5 * time.Minute
 	defaultBroadcastBinSize            = 2
+	defaultDepthDampeningPeriod        = 60 * time.Second // depth must be stable for this duration before changing (small changes only)
+	defaultDepthChangeThreshold        = 2                // depth changes >= this threshold are applied immediately
+	depthDampeningEnabled              = false            // feature flag: set to true to enable dampening (currently disabled to maintain compatibility)
 )
 
 var (
@@ -186,6 +189,8 @@ type Kad struct {
 	depth             uint8                 // current neighborhood depth
 	storageRadius     uint8                 // storage area of responsibility
 	depthMu           sync.RWMutex          // protect depth changes
+	pendingDepth      uint8                 // depth pending approval after dampening period
+	pendingDepthTime  time.Time             // when pendingDepth was first observed
 	manageC           chan struct{}         // trigger the manage forever loop to connect to new peers
 	peerSig           []chan struct{}
 	peerSigMtx        sync.Mutex
@@ -896,12 +901,17 @@ func (k *Kad) recalcDepth() {
 		exclude               = k.opt.ExcludeFunc(im.Reachability(false))
 		binCount              = 0
 		shallowestUnsaturated = uint8(0)
-		depth                 uint8
+		calculatedDepth       uint8
 	)
 
 	// handle edge case separately
 	if peers.Length() <= k.opt.LowWaterMark {
+		if k.depth != 0 {
+			k.logger.Debug("depth changed (edge case)", "old_depth", k.depth, "new_depth", 0)
+			k.metrics.DepthChanges.Inc()
+		}
 		k.depth = 0
+		k.pendingDepth = 0
 		return
 	}
 
@@ -923,14 +933,14 @@ func (k *Kad) recalcDepth() {
 
 		return false, false, nil
 	})
-	depth = shallowestUnsaturated
+	calculatedDepth = shallowestUnsaturated
 
 	shallowestEmpty, noEmptyBins := peers.ShallowestEmpty()
 	// if there are some empty bins and the shallowestEmpty is
 	// smaller than the shallowestUnsaturated then set shallowest
 	// unsaturated to the empty bin.
-	if !noEmptyBins && shallowestEmpty < depth {
-		depth = shallowestEmpty
+	if !noEmptyBins && shallowestEmpty < calculatedDepth {
+		calculatedDepth = shallowestEmpty
 	}
 
 	var (
@@ -949,11 +959,121 @@ func (k *Kad) recalcDepth() {
 		return false, false, nil
 	})
 
-	if depth > candidate {
-		depth = candidate
+	if calculatedDepth > candidate {
+		calculatedDepth = candidate
 	}
 
-	k.depth = depth
+	// Apply hybrid dampening logic
+	k.applyDepthWithDampening(calculatedDepth)
+}
+
+// applyDepthWithDampening applies the new depth with hybrid dampening:
+// - Large changes (>= threshold) are applied immediately
+// - Small changes (< threshold) require stability for dampening period
+// - Changes from depth 0 are applied immediately (bootstrap case)
+//
+// NOTE: Currently dampening is DISABLED (see depthDampeningEnabled constant).
+// This is a proof-of-concept implementation demonstrating how dampening would work.
+func (k *Kad) applyDepthWithDampening(newDepth uint8) {
+	currentDepth := k.depth
+
+	// No change needed
+	if newDepth == currentDepth {
+		// Clear any pending depth change
+		if k.pendingDepth != 0 {
+			k.logger.Debug("depth stabilized, clearing pending change", "depth", currentDepth)
+			k.pendingDepth = 0
+		}
+		return
+	}
+
+	// Feature flag check: if dampening is disabled, apply all changes immediately
+	if !depthDampeningEnabled {
+		if currentDepth != newDepth {
+			k.logger.Debug("depth changed (dampening disabled)",
+				"old_depth", currentDepth,
+				"new_depth", newDepth)
+			k.depth = newDepth
+			k.metrics.DepthChanges.Inc()
+			k.metrics.DepthChangesImmediate.Inc()
+		}
+		return
+	}
+
+	// Calculate depth difference
+	var depthDiff uint8
+	if newDepth > currentDepth {
+		depthDiff = newDepth - currentDepth
+	} else {
+		depthDiff = currentDepth - newDepth
+	}
+
+	// Special case: Changes involving shallow depths (<=20) are applied immediately
+	// This prevents slowing down initial network convergence and bootstrap
+	// Dampening is most valuable for nodes with very deep, stable neighborhoods (>20)
+	// In production mainnet, well-connected nodes operate at depths 22-28
+	const shallowDepthThreshold = 20
+	if currentDepth <= shallowDepthThreshold || newDepth <= shallowDepthThreshold {
+		k.logger.Debug("depth changed immediately (shallow depth/bootstrap)",
+			"old_depth", currentDepth,
+			"new_depth", newDepth)
+		k.depth = newDepth
+		k.pendingDepth = 0
+		k.metrics.DepthChanges.Inc()
+		k.metrics.DepthChangesImmediate.Inc()
+		return
+	}
+
+	// Large changes (>= threshold) are applied immediately
+	if depthDiff >= defaultDepthChangeThreshold {
+		k.logger.Info("depth changed immediately (large change)",
+			"old_depth", currentDepth,
+			"new_depth", newDepth,
+			"difference", depthDiff)
+		k.depth = newDepth
+		k.pendingDepth = 0
+		k.metrics.DepthChanges.Inc()
+		k.metrics.DepthChangesImmediate.Inc()
+		return
+	}
+
+	// Small changes (< threshold) require dampening
+	// Check if this is a new pending depth or continuation of existing one
+	if newDepth != k.pendingDepth {
+		// This is a new pending depth, start the clock
+		k.pendingDepth = newDepth
+		k.pendingDepthTime = time.Now()
+		k.logger.Debug("depth change pending (small change)",
+			"current_depth", currentDepth,
+			"pending_depth", newDepth,
+			"difference", depthDiff,
+			"dampening_period", defaultDepthDampeningPeriod)
+		k.metrics.DepthChangesPending.Inc()
+		return
+	}
+
+	// Pending depth is same as before, check if enough time has passed
+	elapsed := time.Since(k.pendingDepthTime)
+	if elapsed >= defaultDepthDampeningPeriod {
+		// Dampening period has passed, apply the change
+		k.logger.Info("depth changed after dampening period",
+			"old_depth", currentDepth,
+			"new_depth", newDepth,
+			"elapsed", elapsed,
+			"dampening_period", defaultDepthDampeningPeriod)
+		k.depth = newDepth
+		k.pendingDepth = 0
+		k.metrics.DepthChanges.Inc()
+		k.metrics.DepthChangesDampened.Inc()
+		return
+	}
+
+	// Still waiting for dampening period to complete
+	k.logger.Debug("depth change still pending",
+		"current_depth", currentDepth,
+		"pending_depth", newDepth,
+		"elapsed", elapsed,
+		"remaining", defaultDepthDampeningPeriod-elapsed)
 }
 
 // connect connects to a peer and gossips its address to our connected peers,

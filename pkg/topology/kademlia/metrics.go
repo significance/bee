@@ -31,6 +31,10 @@ type metrics struct {
 	Blocklist                             prometheus.Counter
 	ReachabilityStatus                    *prometheus.GaugeVec
 	PeersReachabilityStatus               *prometheus.GaugeVec
+	DepthChanges                          prometheus.Counter
+	DepthChangesImmediate                 prometheus.Counter
+	DepthChangesDampened                  prometheus.Counter
+	DepthChangesPending                   prometheus.Counter
 }
 
 // newMetrics is a convenient constructor for creating new metrics.
@@ -164,6 +168,30 @@ func newMetrics() metrics {
 			},
 			[]string{"peers_reachability_status"},
 		),
+		DepthChanges: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: m.Namespace,
+			Subsystem: subsystem,
+			Name:      "depth_changes_total",
+			Help:      "Total number of depth changes applied.",
+		}),
+		DepthChangesImmediate: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: m.Namespace,
+			Subsystem: subsystem,
+			Name:      "depth_changes_immediate_total",
+			Help:      "Total number of depth changes applied immediately (large changes >= threshold).",
+		}),
+		DepthChangesDampened: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: m.Namespace,
+			Subsystem: subsystem,
+			Name:      "depth_changes_dampened_total",
+			Help:      "Total number of depth changes applied after dampening period (small changes).",
+		}),
+		DepthChangesPending: prometheus.NewCounter(prometheus.CounterOpts{
+			Namespace: m.Namespace,
+			Subsystem: subsystem,
+			Name:      "depth_changes_pending_total",
+			Help:      "Total number of times a depth change was initiated as pending.",
+		}),
 	}
 }
 
